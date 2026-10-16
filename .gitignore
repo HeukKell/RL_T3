@@ -1,0 +1,66 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.ipynb_checkpoints/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging and test outputs
+/RL_T3_PY/build/
+/RL_T3_PY/dist/
+*.egg-info/
+.eggs/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local environment variables (keep shareable examples)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Unreal Engine generated project directories
+/RL_T3_UE/Binaries/
+/RL_T3_UE/DerivedDataCache/
+/RL_T3_UE/Intermediate/
+/RL_T3_UE/Saved/
+
+# Unreal plugin build outputs (retain Binaries for prebuilt plugins)
+/RL_T3_UE/Plugins/**/Intermediate/
+
+# Generated IDE projects and local workspace state
+.vs/
+.idea/
+*.sln
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.xcworkspace/
+*.xcodeproj/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep Python manifests/lockfiles and Unreal sources/assets/settings tracked:
+# pyproject.toml, uv.lock, .python-version, *.uproject, Source/, Content/, Config/
