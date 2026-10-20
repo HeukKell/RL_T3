@@ -36,6 +36,8 @@ class FAIModelConnector : public FRunnable
 public:
 
 	FAIModelConnector();
+	
+	FAIModelConnector(AAgent* NewControlAgent);
 
 	virtual ~FAIModelConnector();
 
@@ -82,6 +84,8 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -91,7 +95,7 @@ public:
 
 public:
 
-	FAIModelConnector ModelConnector;
+	TUniquePtr<FAIModelConnector> ModelConnector;
 
 	/** 목표지점 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
@@ -100,14 +104,14 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	int32 MaxEpisode;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	int32 CurrEpisode;
+	/*UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int32 CurrEpisode;*/
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	int32 MaxSteps;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
-	int32 CurrSteps;
+	/*UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	int32 CurrSteps;*/
 public:
 
 	/* 랜덤한 위치에 위치시킵니다. 
@@ -132,6 +136,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void BeginTrain(int32 NewMaxEpisode, int32 NewMaxSteps);
 
-	UFUNCTION(BleuprintAssignableEvent, BlueprintCallable)
-	void EndTrain();
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
+	void EndedTrain();
+	void EndedTrain_Implementation();
 };

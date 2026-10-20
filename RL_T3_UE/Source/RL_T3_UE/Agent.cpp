@@ -8,18 +8,25 @@
 
 #include "Windows/WindowsHWrapper.h"
 
-
-
 FAIModelConnector::FAIModelConnector()
+{
+
+}
+
+FAIModelConnector::FAIModelConnector(AAgent* NewControlAgent)
 {
 	Thread = FRunnableThread::Create(
 		this, TEXT("FAIModelConnector")
 	);
 
-	MaxEpisode = 0;
+	ControlAgent = NewControlAgent;
+
+	MaxEpisode = ControlAgent->MaxEpisode;
 	CurrEpisode = 0;
-	MaxSteps = 0;
+	MaxSteps = ControlAgent->MaxSteps;
 	CurrSteps = 0;
+
+	
 }
 
 FAIModelConnector::~FAIModelConnector()
@@ -73,19 +80,21 @@ uint32 FAIModelConnector::Run()
 		PAGE_READWRITE,
 		0,
 		sizeof(FSharedMemoryType),
-		L"Lcoal\\AgentMemory"
+		L"Local\\AgentMemory"
 	);
 
 	if (SharedMemory_Handle == nullptr) {
 		UE_LOG(LogTemp, Log, TEXT("CreateFileMappingW failed, Error : %d"), GetLastError());
-		return 1;
-	}
+		
+		if (GetLastError() == ERROR_ALREADY_EXISTS) {
+			UE_LOG(LogTemp, Log, TEXT("CreateFileMappingW failed, already exist. Error : %d"), GetLastError());
+			UE_LOG(LogTemp, Log, TEXT("go. no problem"));
+		}
+		else {
 
-	if (GetLastError() == ERROR_ALREADY_EXISTS) {
-		UE_LOG(LogTemp, Log, TEXT("CreateFileMappingW failed, already exist. Error : %d"), GetLastError());
-
-		CloseHandle(SharedMemory_Handle);
-		return 1;
+			CloseHandle(SharedMemory_Handle);
+			return 1;
+		}
 	}
 
 	void* SharedMemory_Addr = MapViewOfFile(
@@ -105,28 +114,37 @@ uint32 FAIModelConnector::Run()
 
 	FSharedMemoryType* SharedMemory = static_cast<FSharedMemoryType*>(SharedMemory_Addr);
 
-	HANDLE BrainStartEvent = CreateEventW(nullptr, false, false, L"Lcoal\\BrainStartEvent");
+	HANDLE BrainStartEvent = CreateEventW(nullptr, false, false, L"Local\\BrainStartEvent");
 	HANDLE RandomPosSettedEvent = CreateEvent(nullptr, false, false, nullptr);
-	HANDLE StateSettedEvent = CreateEventW(nullptr, false, false, L"Lcoal\\StateSettedEvent");
-	HANDLE ActionSettedEvent = CreateEventW(nullptr, false, false, L"Lcoal\\ActionSettedEvent");
-	HANDLE ActionAdaptedEvent = CreateEvent(nullptr, false, false, L"Lcoal\\ActionAdaptedEvent");
-	HANDLE RewardSettedEvent = CreateEventW(nullptr, false, false, L"Lcoal\\RewardSettedEvent");
-	HANDLE TrainCompEvent = CreateEventW(nullptr, false, false, L"Lcoal\\TrainedCompEvent");
+	HANDLE StateSettedEvent = CreateEventW(nullptr, false, false, L"Local\\StateSettedEvent");
+	HANDLE ActionSettedEvent = CreateEventW(nullptr, false, false, L"Local\\ActionSettedEvent");
+	HANDLE ActionAdaptedEvent = CreateEvent(nullptr, false, false, L"Local\\ActionAdaptedEvent");
+	HANDLE RewardSettedEvent = CreateEventW(nullptr, false, false, L"Local\\RewardSettedEvent");
+	HANDLE TrainedCompEvent = CreateEventW(nullptr, false, false, L"Local\\TrainedCompEvent");
 
 	HANDLE TrainPropCheckerEvent = CreateEvent(nullptr, false, false, nullptr);
 
 
-	MaxEpisode = 0;
-	CurrEpisode = 0;
-	MaxSteps = 0;
-	CurrSteps = 0;
-	
-	bool IsValid_NeedActors = false;
+	auto CloseEvent = [BrainStartEvent, RandomPosSettedEvent, StateSettedEvent, ActionSettedEvent, ActionAdaptedEvent, RewardSettedEvent, TrainedCompEvent, TrainPropCheckerEvent]() {
+		CloseHandle(BrainStartEvent);
+		CloseHandle(RandomPosSettedEvent);
+		CloseHandle(StateSettedEvent);
+		CloseHandle(ActionSettedEvent);
+		CloseHandle(RewardSettedEvent);
+		CloseHandle(TrainedCompEvent);
+		CloseHandle(TrainPropCheckerEvent);
+	};
+
+	auto CloseSharedMemory = [SharedMemory_Handle, SharedMemory_Addr]() {
+		UnmapViewOfFile(SharedMemory_Addr);
+		CloseHandle(SharedMemory_Handle);
+	};
 
 	float Distance = 0.0f;
 	int32 State = 0;
 
-
+	/*
+	bool IsValid_NeedActors = false;
 	// Train 관련 속성 확인
 	AsyncTask(ENamedThreads::GameThread, [this, TrainPropCheckerEvent,&IsValid_NeedActors]() {
 	
@@ -136,21 +154,36 @@ uint32 FAIModelConnector::Run()
 			this->MaxEpisode = this->ControlAgent->MaxEpisode;
 			this->MaxSteps = this->ControlAgent->MaxSteps;
 
-			SetEvent(TrainPropCheckerEvent);
 		}
+		SetEvent(TrainPropCheckerEvent);
 	});
 
-	WaitForSingleObject(TrainPropCheckerEvent, INFINITE);
+	WaitForSingleObject(TrainPropCheckerEvent, INFINITE); */
 
 	if (CurrEpisode < MaxEpisode) {
 
-		// 먼저 시작 event 기다림.
-		if (WaitForSingleObject(BrainStartEvent, INFINITE) == WAIT_OBJECT_0) {
-			UE_LOG(LogTemp, Log, TEXT("AIModelConnector::Run >> BrainStart!"))
+
+		// Brain 시작 기다림
+		while (true) {
+
+			DWORD Result = WaitForSingleObject(BrainStartEvent, 5000);
+			if (Result == WAIT_OBJECT_0) {
+				UE_LOG(LogTemp, Log, TEXT("AIModelConnector::Run >> BrainStart!"))
+				// 정상 수신
+				break;
+			}
+			else if (Result == WAIT_FAILED) {
+				CloseEvent();
+				CloseSharedMemory();
+
+				return 0;
+			}
+
+			UE_LOG(LogTemp, Log, TEXT("Waiting for brain."));
 		}
 
+
 		SharedMemory->IsTraining = 1;
-		UE_LOG(LogTemp, Log, TEXT("FAIModelConnector::Run::While >> Begin"));
 
 		while (!bStopRequested) {
 
@@ -188,9 +221,30 @@ uint32 FAIModelConnector::Run()
 			SetEvent(StateSettedEvent);
 
 			// Action 기다림
-			WaitForSingleObject(ActionSettedEvent,INFINITE);
+			/*WaitForSingleObject(ActionSettedEvent,INFINITE);*/
+
+			// 이렇게 하는 이유는 ActionSettedEvent 를 무한정 기다리면서도, 도중에 bStopRequested 가 호출되면 끝내기 위해.
+			while (!bStopRequested) {
+
+				DWORD Result = WaitForSingleObject(ActionSettedEvent, 1000);
+				if (Result == WAIT_OBJECT_0) {
+					break;
+				}
+				else if (Result == WAIT_FAILED) {
+					bStopRequested = true;
+					UE_LOG(LogTemp, Warning, TEXT("failed to Waiting for ActionSetted...Error : %d"), GetLastError());
+					break;
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("Waiting for ActionSetted..."));
+			}
+			if (bStopRequested) {
+				break;
+			}
 
 			uint32 Action = SharedMemory->Action;
+			UE_LOG(LogTemp, Log, TEXT("Action Setted! (%d)"), Action);
+
 
 			// Action 설정됨
 
@@ -201,7 +255,7 @@ uint32 FAIModelConnector::Run()
 
 			// 솔직히 FRunnable 쓴 시점에서는 Event 보단 SharedMemory 에다가 Setted 넣고, Sleep 하는게 코드량이 적겠다.
 			// FRunnable , SharedMemory ,FPlatforProcess::Sleep
-
+			UE_LOG(LogTemp, Log, TEXT("Begin to move by action"));
 			// 움직여!
 			AsyncTask(ENamedThreads::GameThread, [this, ActionAdaptedEvent, &PrevDistance, &NextDistance, &PrevState, &NextState, Action]() {
 
@@ -232,6 +286,8 @@ uint32 FAIModelConnector::Run()
 			WaitForSingleObject(ActionAdaptedEvent, INFINITE);
 			// 액션 적용 되었음
 
+			UE_LOG(LogTemp, Log, TEXT("Moved!"));
+
 			// 보상 설계
 			if (FMath::IsNearlyEqual(PrevDistance, NextState, 1)) {
 				// 안움직였다.
@@ -248,7 +304,7 @@ uint32 FAIModelConnector::Run()
 					SharedMemory->Reward = -1.0f;
 				}
 			}
-			else if (FMath::Abs(PrevDistance) > FMath::Abs(NextState)) {
+			else if (FMath::Abs(PrevDistance) > FMath::Abs(NextDistance)) {
 				// 더 가까워진 경우
 				SharedMemory->Reward = 1.0f;
 			}
@@ -260,6 +316,8 @@ uint32 FAIModelConnector::Run()
 			SharedMemory->NextState = NextState;
 
 			SetEvent(RewardSettedEvent);
+
+			UE_LOG(LogTemp, Log, TEXT("Reward Setted (%f)"), SharedMemory->Reward);
 
 			if (FMath::Abs(SharedMemory->Reward) >= 10) {
 				// 성공이든 실패든 아무튼 에피소드 종료
@@ -281,7 +339,28 @@ uint32 FAIModelConnector::Run()
 				CurrSteps++;
 			}
 
-			WaitForSingleObject(TrainCompEvent, INFINITE);
+			
+			while (!bStopRequested) {
+
+				DWORD Result = WaitForSingleObject(TrainedCompEvent, 1000);
+
+				if (Result == WAIT_OBJECT_0) {
+
+					UE_LOG(LogTemp, Log, TEXT("TrainComp!"));
+					break;
+
+				}
+				else if (Result == WAIT_FAILED) {
+					bStopRequested = true;
+					UE_LOG(LogTemp, Warning, TEXT("Failed to waiting for TrainCompEvent. Error(%d)"), GetLastError());
+					break;
+				}
+
+				UE_LOG(LogTemp, Log, TEXT("Waiting for TrainCompEvent ... "))
+			}
+			if (bStopRequested) {
+				break;
+			}
 
 			//FPlatformProcess::Sleep(0.1f);
 
@@ -297,16 +376,28 @@ uint32 FAIModelConnector::Run()
 		}
 	}
 	
-	UnmapViewOfFile(SharedMemory_Addr);
-	CloseHandle(SharedMemory_Handle);
 
-	CloseHandle(BrainStartEvent);
+
+	CloseSharedMemory();
+	/*UnmapViewOfFile(SharedMemory_Addr);
+	CloseHandle(SharedMemory_Handle);*/
+
+	CloseEvent();
+	/*CloseHandle(BrainStartEvent);
 	CloseHandle(RandomPosSettedEvent);
 	CloseHandle(StateSettedEvent);
 	CloseHandle(ActionSettedEvent);
 	CloseHandle(RewardSettedEvent);
 	CloseHandle(TrainCompEvent);
-	CloseHandle(TrainPropCheckerEvent);
+	CloseHandle(TrainPropCheckerEvent);*/
+
+	UE_LOG(LogTemp, Log, TEXT("FAIModelConnector::Run >> finish while roop"));
+
+	AsyncTask(ENamedThreads::GameThread, [this]() {
+		if (IsValid(this->ControlAgent)) {
+			this->ControlAgent->EndedTrain();
+		}
+	});
 
 	return 0;
 
@@ -337,17 +428,24 @@ AAgent::AAgent()
 	PrimaryActorTick.bCanEverTick = true;
 
 
-	MaxEpisode = 0;
-	CurrEpisode = 0;
-
-	CurrSteps = 0;
-	MaxSteps = 0;
+	MaxEpisode = 10;
+	MaxSteps = 50;
 }
 
 // Called when the game starts or when spawned
 void AAgent::BeginPlay()
 {
 	Super::BeginPlay();
+
+}
+
+void AAgent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+
+	if (nullptr != ModelConnector) {
+		ModelConnector->Stop();
+	}
 
 }
 
@@ -375,22 +473,22 @@ void AAgent::SetRandomPosition()
 void AAgent::PlayAction(int32 ActionId)
 {
 	switch (ActionId) {
-	case 0:
+		case 0:
 
 		
-		// 왼쪽 50unit 이동
-		AddActorLocalOffset(FVector(-50.0f, 0.0f, 0.0f));
-		break;
+			// 왼쪽 50unit 이동
+			AddActorLocalOffset(FVector(-50.0f, 0.0f, 0.0f));
+			break;
 
-	case 1:
+		case 1:
 		
-		// 정지
-		break;
+			// 정지
+			break;
 
-	case 2:
-		AddActorLocalOffset(FVector(+50.0f, 0.0f, 0.0f));
-		// 오른쪽 50 unit 이동
-		break;
+		case 2:
+			AddActorLocalOffset(FVector(+50.0f, 0.0f, 0.0f));
+			// 오른쪽 50 unit 이동
+			break;
 	}
 }
 
@@ -423,7 +521,12 @@ int32 AAgent::DistanceToState(float Distance)
 
 void AAgent::BeginTrain(int32 NewMaxEpisode, int32 NewMaxSteps)
 {
-	ModelConnector.ControlAgent = self;
 
-	ModelContainer.
+	ModelConnector = MakeUnique<FAIModelConnector, AAgent*>(this);
+
+}
+
+void AAgent::EndedTrain_Implementation()
+{
+	ModelConnector = nullptr;
 }

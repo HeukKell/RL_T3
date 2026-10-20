@@ -27,10 +27,10 @@ public:
 protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
-	USceneComponent* RootComp;
+	TObjectPtr<USceneComponent> RootComp;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Display")
-	class UBillboardComponent* Marker;
+	TObjectPtr<class UBillboardComponent> Marker;
 	
 public:
 

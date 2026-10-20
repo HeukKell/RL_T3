@@ -16,7 +16,7 @@ ATargetPositioner::ATargetPositioner()
 
 	Marker = CreateDefaultSubobject<UBillboardComponent>(TEXT("Marker"));
 
-	Marker->SetupAttachment(RootComp);
+	Marker->SetupAttachment(RootComponent);
 
 	if (Marker) {
 

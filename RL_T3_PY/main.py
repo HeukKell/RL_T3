@@ -65,16 +65,16 @@ class SharedMemoryType() :
 
     def get_state(self) -> int :
         # 상태를 반환한다
-        state = struct.unpack("<i",self.shared.buf[0:4])
+        state, = struct.unpack("<i",self.shared.buf[0:4])
         return state
     def get_nextState(self)  -> int:
         # 다음 상태를 반환한다
-        state = struct.unpack("<i", self.shared.buf[4:8])
+        state, = struct.unpack("<i", self.shared.buf[4:8])
         return state
 
     def get_action(self) -> int:
         # 액션을 반환합니다.
-        action = struct.unpack("<i", self.shared.buf[12:16])
+        action, = struct.unpack("<i", self.shared.buf[8:12])
         return action
 
     def set_action(self, newAction : int):
@@ -82,15 +82,15 @@ class SharedMemoryType() :
         return
 
     def get_reward(self) -> float :
-        reward = struct.unpack("<f", self.shared.buf[12:16])
+        reward, = struct.unpack("<f", self.shared.buf[12:16])
         return reward
 
     def get_isTraining(self) -> float :
-        training = struct.unpack("<i", self.shared.buf[16:20])
+        training, = struct.unpack("<i", self.shared.buf[16:20])
         return training
 
-    def set_isTraining(self) :
-        self.shared.buf[16:20] = struct.pack("<i", 1)
+    def set_isTraining(self, newTraining : bool) :
+        self.shared.buf[16:20] = struct.pack("<i", newTraining)
         return
 
     def close(self) :
@@ -149,15 +149,36 @@ def main():
 
     # ---
 
-    SYNCHRONIZE = 0x00100000
+    SYNCHRONIZE = 0x00100000        # Event 가 신호상태가 될때를 감지하기위한 권한
+    EVENT_MODIFY_STATE = 0x0002     # SetEvent,ResetEvent,PulseEvent 등 함수등을 호출할 수 있게하는 권한.
     INFINITE = 0xFFFFFFF
 
-    brainStartEvent= kernel32.OpenEventW(SYNCHRONIZE, False, "Lcoal\\BrainStartEvent")
+    brainStartEvent= kernel32.OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, False, "Local\\BrainStartEvent")
     stateSettedEvent = kernel32.OpenEventW(SYNCHRONIZE, False, "Local\\StateSettedEvent")
-    actionSettedEvent = kernel32.OpenEventW(SYNCHRONIZE, False, "Local\\ActionSettedEvent")
+    actionSettedEvent = kernel32.OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, False, "Local\\ActionSettedEvent")
     rewardSettedEvent = kernel32.OpenEventW(SYNCHRONIZE, False, "Local\\RewardSettedEvent")
-    trainCompEvent = kernel32.OpenEventW(SYNCHRONIZE, False, "Local\\TrainCompEvent")
-    
+    trainedCompEvent = kernel32.OpenEventW(SYNCHRONIZE | EVENT_MODIFY_STATE, False, "Local\\TrainedCompEvent")
+
+    if not brainStartEvent : 
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+    if not stateSettedEvent : 
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+    if not actionSettedEvent : 
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+    if not rewardSettedEvent : 
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+    if not trainedCompEvent : 
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
 
     epsilon = 0.2;
     
@@ -166,9 +187,13 @@ def main():
         shared_memory = SharedMemoryType()
 
         # BrainStartEvent 알려야 한다
-        kernel32.SetEvent(brainStartEvent)
+        if not kernel32.SetEvent(brainStartEvent):
+            raise ctypes.WinError(ctypes.get_last_error())
+        
+        print("brainStartEvent is setted")
         while True:
 
+            print("wating for stateSettedEvent")
             # state 가 설정될때까지 대기
             kernel32.WaitForSingleObject(stateSettedEvent, INFINITE)
             # state 가 설정 되었다
@@ -185,16 +210,23 @@ def main():
 
             # action 설정
             shared_memory.set_action(action)
-            kernel32.SetEvent(actionSettedEvent)
+            if not kernel32.SetEvent(actionSettedEvent) :
+                raise ctypes.WinError(ctypes.get_last_error())
+            
+            print("setted action")
 
+            print("wating for rewrdSettedEvent")
             # 보상 올때까지 대기
             kernel32.WaitForSingleObject(rewardSettedEvent, INFINITE)
             # 보상 왔다
+            print("reward Setted!")
 
             reward = shared_memory.get_reward()
             state = shared_memory.get_state()
             nextState = shared_memory.get_nextState()
             action = shared_memory.get_action()
+
+            print(f"reward is {reward}")
 
             gamma = 0.9
             target = 0
@@ -205,7 +237,7 @@ def main():
                 target = reward
             else :
                 # 현재의 보상 + 미래상태의 가치
-                target = reward + gamma*q_table[nextState].max().item()
+                target = reward + gamma*(q_table[nextState].max().item())
 
 
             q_table[currentState, action] += q_table[currentState,action].item() + alpha * target
@@ -213,7 +245,10 @@ def main():
             print("학습 결과 : ")
             print(q_table)
 
-            kernel32.SetEvent(trainCompEvent)
+            if not kernel32.SetEvent(trainedCompEvent) :
+                raise ctypes.WinError(ctypes.get_last_error())
+            
+            print("setted trainedCompEvent")
 
             # 아주 잠깐 학습 종료했는지 확인하고 넘어간다.
             
@@ -250,7 +285,7 @@ def main():
         kernel32.CloseHandle(stateSettedEvent)
         kernel32.CloseHandle(actionSettedEvent)
         kernel32.CloseHandle(rewardSettedEvent)
-        kernel32.CloseHandle(trainCompEvent)
+        kernel32.CloseHandle(trainedCompEvent)
 
         print("프로그램 종료")        
 
