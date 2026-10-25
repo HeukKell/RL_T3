@@ -6,6 +6,7 @@ import struct
 import time
 import random
 
+from pathlib import Path
 
 
 from datetime import datetime
@@ -201,7 +202,7 @@ def main():
             # state 를 읽고 행동 설정하기
             currentState = shared_memory.get_state()
             action = -1
-            if epsilon < random.random() :
+            if epsilon > random.random() :
                 # 탐험 로직
                 action = random.randint(0,2)
                 
@@ -232,7 +233,7 @@ def main():
             target = 0
             alpha = 0.1
 
-            if reward == 20 :
+            if reward == 20  or reward == -10:
                 # 완료
                 target = reward
             else :
@@ -240,7 +241,7 @@ def main():
                 target = reward + gamma*(q_table[nextState].max().item())
 
 
-            q_table[currentState, action] += q_table[currentState,action].item() + alpha * target
+            q_table[currentState, action] += alpha * (target - q_table[currentState, action].item())
 
             print("학습 결과 : ")
             print(q_table)
@@ -257,15 +258,17 @@ def main():
                 print("학습 종료")
                 print(q_table)
 
+                Path("data").mkdir(parents=True, exist_ok=True) # data 폴더 생성
+
                 with open("data/model.txt", "wt",encoding="utf-8") as file :
 
                     model_flatten = q_table.flatten()
 
                     for idx in range(15) :
                         
-                        file.write(model_flatten[idx].item())
+                        file.write(str(model_flatten[idx].item()))
                         
-                        if idx % 3 == 1:
+                        if idx % 3 == 2:
                             file.write("\n")
                         else:
                             if idx != 14 :

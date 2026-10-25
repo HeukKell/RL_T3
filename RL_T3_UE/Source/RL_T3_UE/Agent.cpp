@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Agent.h"
@@ -15,9 +15,6 @@ FAIModelConnector::FAIModelConnector()
 
 FAIModelConnector::FAIModelConnector(AAgent* NewControlAgent)
 {
-	Thread = FRunnableThread::Create(
-		this, TEXT("FAIModelConnector")
-	);
 
 	ControlAgent = NewControlAgent;
 
@@ -26,6 +23,9 @@ FAIModelConnector::FAIModelConnector(AAgent* NewControlAgent)
 	MaxSteps = ControlAgent->MaxSteps;
 	CurrSteps = 0;
 
+	Thread = FRunnableThread::Create(
+		this, TEXT("FAIModelConnector")
+	);
 	
 }
 
@@ -42,7 +42,7 @@ bool FAIModelConnector::Init()
 {
 	UE_LOG(LogTemp, Log, TEXT("Worker Inited"));
 
-	// °øÀ¯ ¸Ş¸ğ¸® ¿¬°á
+	// ê³µìœ  ë©”ëª¨ë¦¬ ì—°ê²°
 
 	/*
 	SharedMemoryRegion = FPlatformMemory::MapNamedSharedMemoryRegion(
@@ -145,7 +145,7 @@ uint32 FAIModelConnector::Run()
 
 	/*
 	bool IsValid_NeedActors = false;
-	// Train °ü·Ã ¼Ó¼º È®ÀÎ
+	// Train ê´€ë ¨ ì†ì„± í™•ì¸
 	AsyncTask(ENamedThreads::GameThread, [this, TrainPropCheckerEvent,&IsValid_NeedActors]() {
 	
 		if (IsValid(this->ControlAgent) && IsValid(this->ControlAgent->TargetPositioner)) {
@@ -163,13 +163,13 @@ uint32 FAIModelConnector::Run()
 	if (CurrEpisode < MaxEpisode) {
 
 
-		// Brain ½ÃÀÛ ±â´Ù¸²
+		// Brain ì‹œì‘ ê¸°ë‹¤ë¦¼
 		while (true) {
 
 			DWORD Result = WaitForSingleObject(BrainStartEvent, 5000);
 			if (Result == WAIT_OBJECT_0) {
 				UE_LOG(LogTemp, Log, TEXT("AIModelConnector::Run >> BrainStart!"))
-				// Á¤»ó ¼ö½Å
+				// ì •ìƒ ìˆ˜ì‹ 
 				break;
 			}
 			else if (Result == WAIT_FAILED) {
@@ -197,7 +197,7 @@ uint32 FAIModelConnector::Run()
 				
 				if (IsValid(this->ControlAgent) && IsValid(this->ControlAgent->TargetPositioner)) 
 				{
-					if (this->CurrSteps == 0) { // ½Å±Ô ¿¡ÇÇ¼Òµå Ã¹ ½ÃÀÛÀÌ¶ó¸é,
+					if (this->CurrSteps == 0) { // ì‹ ê·œ ì—í”¼ì†Œë“œ ì²« ì‹œì‘ì´ë¼ë©´,
 						this->ControlAgent->SetRandomPosition();
 						this->ControlAgent->TargetPositioner->SetRandomPosition();
 					}
@@ -214,16 +214,16 @@ uint32 FAIModelConnector::Run()
 
 			WaitForSingleObject(RandomPosSettedEvent, INFINITE);
 			
-			// Random ÇÑ À§Ä¡¿¡ À§Ä¡½ÃÄ×´Ù.
+			// Random í•œ ìœ„ì¹˜ì— ìœ„ì¹˜ì‹œì¼°ë‹¤.
 		
-			// State ¼³Á¤
+			// State ì„¤ì •
 			SharedMemory->State = State;
 			SetEvent(StateSettedEvent);
 
-			// Action ±â´Ù¸²
+			// Action ê¸°ë‹¤ë¦¼
 			/*WaitForSingleObject(ActionSettedEvent,INFINITE);*/
 
-			// ÀÌ·¸°Ô ÇÏ´Â ÀÌÀ¯´Â ActionSettedEvent ¸¦ ¹«ÇÑÁ¤ ±â´Ù¸®¸é¼­µµ, µµÁß¿¡ bStopRequested °¡ È£ÃâµÇ¸é ³¡³»±â À§ÇØ.
+			// ì´ë ‡ê²Œ í•˜ëŠ” ì´ìœ ëŠ” ActionSettedEvent ë¥¼ ë¬´í•œì • ê¸°ë‹¤ë¦¬ë©´ì„œë„, ë„ì¤‘ì— bStopRequested ê°€ í˜¸ì¶œë˜ë©´ ëë‚´ê¸° ìœ„í•´.
 			while (!bStopRequested) {
 
 				DWORD Result = WaitForSingleObject(ActionSettedEvent, 1000);
@@ -246,17 +246,17 @@ uint32 FAIModelConnector::Run()
 			UE_LOG(LogTemp, Log, TEXT("Action Setted! (%d)"), Action);
 
 
-			// Action ¼³Á¤µÊ
+			// Action ì„¤ì •ë¨
 
 			float PrevDistance = 0.0f;
 			float NextDistance = 0.0f;
 			uint32 PrevState = 0;
 			uint32 NextState = 0;
 
-			// ¼ÖÁ÷È÷ FRunnable ¾´ ½ÃÁ¡¿¡¼­´Â Event º¸´Ü SharedMemory ¿¡´Ù°¡ Setted ³Ö°í, Sleep ÇÏ´Â°Ô ÄÚµå·®ÀÌ Àû°Ú´Ù.
+			// ì†”ì§íˆ FRunnable ì“´ ì‹œì ì—ì„œëŠ” Event ë³´ë‹¨ SharedMemory ì—ë‹¤ê°€ Setted ë„£ê³ , Sleep í•˜ëŠ”ê²Œ ì½”ë“œëŸ‰ì´ ì ê² ë‹¤.
 			// FRunnable , SharedMemory ,FPlatforProcess::Sleep
 			UE_LOG(LogTemp, Log, TEXT("Begin to move by action"));
-			// ¿òÁ÷¿©!
+			// ì›€ì§ì—¬!
 			AsyncTask(ENamedThreads::GameThread, [this, ActionAdaptedEvent, &PrevDistance, &NextDistance, &PrevState, &NextState, Action]() {
 
 	
@@ -270,13 +270,13 @@ uint32 FAIModelConnector::Run()
 					this->ControlAgent->PlayAction(Action);
 
 					NextDistance = this->ControlAgent->CheckTargetPosition(this->ControlAgent->TargetPositioner);
-					NextState = this->ControlAgent->DistanceToState(PrevDistance);
+					NextState = this->ControlAgent->DistanceToState(NextDistance);
 				}
 
 				else {
 
-					// ¾øÀ¸¸é »ç½Ç»ó ¾ÈµÇ±ä ÇÏ´Ù.
-					UE_LOG(LogTemp, Warning, TEXT("ControlAgent is not valid"))
+					// ì—†ìœ¼ë©´ ì‚¬ì‹¤ìƒ ì•ˆë˜ê¸´ í•˜ë‹¤.
+					UE_LOG(LogTemp, Warning, TEXT("ControlAgent is not valid"));
 
 				}
 
@@ -284,28 +284,35 @@ uint32 FAIModelConnector::Run()
 			});
 
 			WaitForSingleObject(ActionAdaptedEvent, INFINITE);
-			// ¾×¼Ç Àû¿ë µÇ¾úÀ½
+			// ì•¡ì…˜ ì ìš© ë˜ì—ˆìŒ
 
 			UE_LOG(LogTemp, Log, TEXT("Moved!"));
 
-			// º¸»ó ¼³°è
-			if (FMath::IsNearlyEqual(PrevDistance, NextState, 1)) {
-				// ¾È¿òÁ÷¿´´Ù.
-
-				if (NextState == 2 && Action == 1) {
-					// ÀÇµµÀûÀ¸·Î ¾È¿òÁ÷¿´´Ù. 
+			if (CurrSteps >= MaxSteps-1) {
+				if (CurrSteps == MaxSteps - 1 && NextState == 2 && Action == 1) {
+					// ë§ˆì§€ë§‰ ìŠ¤í…	
 					SharedMemory->Reward = 20.0f;
 				}
-				else if (CurrSteps >= MaxSteps) {
-					// ÇöÀç ¸¶Áö¸· ½ºÅÜÀÌ°í, ¸¶Áö¸· ½ºÅÜ ¸¶Àúµµ ¿Ï·á¸¦ ¸øÇß´Ù¸é,
+				else {
 					SharedMemory->Reward = -10.0f;
+				}
+
+
+			}
+			// ë³´ìƒ ì„¤ê³„
+			else if (FMath::IsNearlyEqual(PrevDistance, NextDistance, 1)) {
+				// ì•ˆì›€ì§ì˜€ë‹¤.
+
+				if (NextState == 2 && Action == 1) {
+					// ì˜ë„ì ìœ¼ë¡œ ì•ˆì›€ì§ì˜€ë‹¤. 
+					SharedMemory->Reward = 20.0f;
 				}
 				else {
 					SharedMemory->Reward = -1.0f;
 				}
 			}
 			else if (FMath::Abs(PrevDistance) > FMath::Abs(NextDistance)) {
-				// ´õ °¡±î¿öÁø °æ¿ì
+				// ë” ê°€ê¹Œì›Œì§„ ê²½ìš°
 				SharedMemory->Reward = 1.0f;
 			}
 			else {
@@ -320,10 +327,10 @@ uint32 FAIModelConnector::Run()
 			UE_LOG(LogTemp, Log, TEXT("Reward Setted (%f)"), SharedMemory->Reward);
 
 			if (FMath::Abs(SharedMemory->Reward) >= 10) {
-				// ¼º°øÀÌµç ½ÇÆĞµç ¾Æ¹«Æ° ¿¡ÇÇ¼Òµå Á¾·á
+				// ì„±ê³µì´ë“  ì‹¤íŒ¨ë“  ì•„ë¬´íŠ¼ ì—í”¼ì†Œë“œ ì¢…ë£Œ
 
-				if (CurrEpisode >= MaxEpisode) {
-					// TODO ÇĞ½À Á¾·á
+				if (CurrEpisode >= MaxEpisode -1 ) {
+					// TODO í•™ìŠµ ì¢…ë£Œ
 
 					bStopRequested = true;
 					SharedMemory->IsTraining = false;
@@ -332,7 +339,7 @@ uint32 FAIModelConnector::Run()
 					CurrEpisode++;
 					CurrSteps = 0;
 
-					// »õ·Î¿î »óÅÂ ¼³Á¤
+					// ìƒˆë¡œìš´ ìƒíƒœ ì„¤ì •
 				}
 			}
 			else {
@@ -476,18 +483,18 @@ void AAgent::PlayAction(int32 ActionId)
 		case 0:
 
 		
-			// ¿ŞÂÊ 50unit ÀÌµ¿
-			AddActorLocalOffset(FVector(-50.0f, 0.0f, 0.0f));
+			// ì™¼ìª½ ì´ë™
+			AddActorLocalOffset(FVector(-10.0f, 0.0f, 0.0f));
 			break;
 
 		case 1:
 		
-			// Á¤Áö
+			// ì •ì§€
 			break;
 
 		case 2:
-			AddActorLocalOffset(FVector(+50.0f, 0.0f, 0.0f));
-			// ¿À¸¥ÂÊ 50 unit ÀÌµ¿
+			AddActorLocalOffset(FVector(+10.0f, 0.0f, 0.0f));
+			// ì˜¤ë¥¸ìª½ ì´ë™
 			break;
 	}
 }
@@ -521,9 +528,10 @@ int32 AAgent::DistanceToState(float Distance)
 
 void AAgent::BeginTrain(int32 NewMaxEpisode, int32 NewMaxSteps)
 {
+	MaxEpisode = NewMaxEpisode;
+	MaxSteps = NewMaxSteps;
 
 	ModelConnector = MakeUnique<FAIModelConnector, AAgent*>(this);
-
 }
 
 void AAgent::EndedTrain_Implementation()
